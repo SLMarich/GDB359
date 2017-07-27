@@ -54,12 +54,38 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::cout << "Initializing FBX Interface." << std::endl;
 #endif
 
-	//std::string boneFilePath = "Assets\\Test Assets\\Bone.fbx";
-	//FBXLibrary::FBXInterface fbxInterface;
-	//fbxInterface.InitializeImporter(boneFilePath.c_str());
-	//fbxInterface.CreateScene();
+	std::string boneFilePath = "Assets\\Test Assets\\Teddy\\Teddy_Idle.fbx";	
+	FBXWrapper::FBXInterface fbxInterface;
+	fbxInterface.InitializeImporter(boneFilePath.c_str());
+	fbxInterface.CreateScene();
+	//fbxInterface.Print();
 
+	//Joints:
+	fbxInterface.FillBindArray();
+	fbxInterface.FillTransformArray();
+	//fbxInterface.PrintTransformArray();
+	std::vector<FBXWrapper::FBXInterface::joint> jointHolder = fbxInterface.GetTransformArray();
+	
+	//Mesh:
+	fbxInterface.GetMesh();
+	std::vector<int> teddyIndicies = fbxInterface.GetIndicies();
+	std::vector<DirectX::XMFLOAT4> teddyVertices;
+	DirectX::XMFLOAT4 vertexHolder;
+	std::vector<FBXWrapper::FBXInterface::vector4f> verticesHolder;
+	verticesHolder = fbxInterface.GetVerticies();
+	for (unsigned int i = 0; i < verticesHolder.size(); i++) {
+		vertexHolder.x = verticesHolder.at(i).data[0];
+		vertexHolder.y = verticesHolder.at(i).data[1];
+		vertexHolder.z = verticesHolder.at(i).data[2];
+		vertexHolder.w = verticesHolder.at(i).data[3];
+		teddyVertices.push_back(vertexHolder);
+	}
+	int teddyIndiciesCount = fbxInterface.GetIndiciesCount();
 
+#ifdef _DEBUG
+	std::cout << "FBX Interface created at:" << &fbxInterface << std::endl;
+	//printf("Simple test of printf...\n");
+#endif
 #pragma endregion
 
 
@@ -76,7 +102,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 #pragma region GRAPHICS_REGION
 #ifdef _DEBUG
-	std::cout << "Initializing Graphics Interface." << std::endl;
+	std::cout << "\nInitializing Graphics Interface." << std::endl;
 #endif
 
 	GraphicsInterface* gInt = GraphicsInterface::Get();
@@ -88,8 +114,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #endif
 	float red[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	float gray[4] = { 0.3f,0.3f,0.3f,1.0f };
-	gInt->GetDeviceContext()->ClearRenderTargetView(gInt->GetRenderTargetView(), gray);
-
+	float black[4] = { 0.0f,0.0f,0.0f,1.0f };
+	gInt->GetDeviceContext()->ClearRenderTargetView(gInt->GetRenderTargetView(), black);
+	bool skybox = false;
 #ifdef _DEBUG
 	std::cout << "Cleared main window to gray." << std::endl;
 #endif
@@ -101,7 +128,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
-    // Main message loop:
+			//Set Viewport
+			gInt->GetDeviceContext()->RSSetViewports(1, gInt->GetViewPort());
+			ID3D11RenderTargetView*	views[] = { gInt->GetRenderTargetView() };
+			gInt->GetDeviceContext()->OMSetRenderTargets(1, views, gInt->GetDepthStencilView());
+			gInt->GetDeviceContext()->OMSetDepthStencilState(gInt->GetDepthStencilState(),0);
+			gInt->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			float cubeRotationAngle = 0.0f;
+
+			//Initialize the FBX information
+			gInt->MakeTeddyBuffers(teddyVertices, teddyIndicies);
+
+			// Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
@@ -109,27 +148,110 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             TranslateMessage(&msg);
             DispatchMessage(&msg);
 			//std::cout<<"This is inside the message loop."<<std::endl;
-			//Set Viewport
-			gInt->GetDeviceContext()->RSSetViewports(1, gInt->GetViewPort());
-			gInt->GetDeviceContext()->RSSetState(gInt->GetRasterizerState());
+			gInt->GetDeviceContext()->ClearRenderTargetView(gInt->GetRenderTargetView(), black);
+			gInt->GetDeviceContext()->ClearDepthStencilView(gInt->GetDepthStencilView(), 0, gInt->GetFarPlane(), 0);
 
-			ID3D11Buffer* vertexBuffers[] = { gInt->GetBaseCubeVertexBuffer() };
-			//gInt->GetDeviceContext()->VSSetConstantBuffers(0, 1, vertexBuffers);
-			UINT stride = sizeof(BasePosition);
-			UINT offset = 0;
-			ID3D11Buffer* indexBuffers[] = { gInt->GetBaseCubeIndexBuffer() };
-			gInt->GetDeviceContext()->IASetInputLayout(gInt->GetBaseVSInputLayout());
+			cubeRotationAngle += 1.0f / 60.0f;
+#pragma region SKYBOX_DRAW
+			if (skybox) {
+				gInt->GetDeviceContext()->RSSetState(gInt->GetRasterizerState());
+
+				ID3D11Buffer* vertexBuffers[] = { gInt->GetBaseCubeVertexBuffer() };
+				UINT stride = sizeof(BasePosition);
+				UINT offset = 0;
+				ID3D11Buffer* indexBuffers[] = { gInt->GetBaseCubeIndexBuffer() };
+				gInt->GetDeviceContext()->IASetInputLayout(gInt->GetBaseVSInputLayout());
+				gInt->GetDeviceContext()->IASetVertexBuffers(0, 1, vertexBuffers, &stride, &offset);
+				gInt->GetDeviceContext()->VSSetShader(gInt->GetBaseVertexShader(), nullptr, 0);
+				gInt->GetDeviceContext()->PSSetShader(gInt->GetBasePixelShader(), nullptr, 0);
+				gInt->GetDeviceContext()->IASetIndexBuffer(gInt->GetBaseCubeIndexBuffer(), DXGI_FORMAT::DXGI_FORMAT_R16_UINT, 0);
+
+				DirectX::XMFLOAT4X4 cubeLocation;
+				DirectX::XMStoreFloat4x4(&cubeLocation, DirectX::XMMatrixMultiply(DirectX::XMMatrixTranspose(DirectX::XMMatrixTranslation(0.0f, 0.0f, 1.0f)), DirectX::XMMatrixRotationY(cubeRotationAngle)));
+				ModelViewProjection mvp;
+				mvp.model = cubeLocation;
+				mvp.view = gInt->GetCameraMatrix();
+				mvp.projection = gInt->GetProjectionMatrix();
+				gInt->UpdateModelConstantBuffer(mvp);
+
+				ID3D11Buffer* constantBuffers[] = { gInt->GetModelConstantBuffer() };
+				gInt->GetDeviceContext()->VSSetConstantBuffers(0, 1, constantBuffers);
+
+				//gInt->GetDeviceContext()->VSSetShaderResources;
+
+				ID3D11SamplerState* pixelSamplers[] = { gInt->GetLinearSampler() };
+				gInt->GetDeviceContext()->PSSetSamplers(0, 1, pixelSamplers);
+				gInt->GetDeviceContext()->DrawIndexed(gInt->GetBaseCubeIndicesCount(), 0, 0);
+			}
+#pragma endregion
+#pragma region DEBUG_GROUND_DRAW
+			gInt->GetDeviceContext()->RSSetState(gInt->GetRasterizerState());
+			gInt->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY::D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
+
+			ID3D11Buffer* debugGroundVertexBuffers[] = { gInt->GetDebugGroundVertexBuffer() };
+			UINT debugGroundStride = sizeof(DirectX::XMFLOAT3);
+			UINT debugGroundOffset = 0;
+			gInt->GetDeviceContext()->IASetInputLayout(gInt->GetDebugGroundInputLayout());
+			gInt->GetDeviceContext()->IASetVertexBuffers(0, 1, debugGroundVertexBuffers, &debugGroundStride, &debugGroundOffset);
+			gInt->GetDeviceContext()->VSSetShader(gInt->GetDebugGroundVertexShader(), nullptr, 0);
+			gInt->GetDeviceContext()->PSSetShader(gInt->GetDebugGroundPixelShader(), nullptr, 0);
+
+			DirectX::XMFLOAT4X4 debugGroundLocation;
+			DirectX::XMStoreFloat4x4(&debugGroundLocation,
+				DirectX::XMMatrixTranspose( //Combine for model matrix and transpose for directx
+					DirectX::XMMatrixTranslation(0.0f, -5.0f, 0.0f)
+				));
+			ModelViewProjection debuggroundmvp;
+			debuggroundmvp.model = debugGroundLocation;
+			debuggroundmvp.view = gInt->GetCameraMatrix();
+			debuggroundmvp.projection = gInt->GetProjectionMatrix();
+			gInt->UpdateModelConstantBuffer(debuggroundmvp);
+
+			ID3D11Buffer* debugGroundConstantBuffers[] = { gInt->GetModelConstantBuffer() };
+			gInt->GetDeviceContext()->VSSetConstantBuffers(0, 1, debugGroundConstantBuffers);
+
+			ID3D11SamplerState* debugGroundPixelSamplers[] = { gInt->GetLinearSampler() };
+			gInt->GetDeviceContext()->PSSetSamplers(0, 1, debugGroundPixelSamplers);
+			gInt->GetDeviceContext()->Draw(gInt->GetDebugGroundVertexCount(), 0);
+#pragma endregion
+#pragma region TEDDY_DRAW
+			gInt->GetDeviceContext()->RSSetState(gInt->GetWireframeState());
 			gInt->GetDeviceContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			gInt->GetDeviceContext()->IASetVertexBuffers(0, 1, vertexBuffers,&stride,&offset);
-			gInt->GetDeviceContext()->VSSetShader(gInt->GetBaseVertexShader(), nullptr, 0);
-			gInt->GetDeviceContext()->PSSetShader(gInt->GetBasePixelShader(), nullptr, 0);
-			gInt->GetDeviceContext()->IASetIndexBuffer(gInt->GetBaseCubeIndexBuffer(), DXGI_FORMAT::DXGI_FORMAT_R16_UINT, 0);
+
+			ID3D11Buffer* teddyVertexBuffers[] = { gInt->GetTeddyVertexBuffer() };
+			UINT teddyStride = sizeof(DirectX::XMFLOAT4);
+			UINT teddyOffset = 0;
+			ID3D11Buffer* teddyIndexBuffers[] = { gInt->GetTeddyIndexBuffer() };
+			gInt->GetDeviceContext()->IASetInputLayout(gInt->GetTeddyVSInputLayout());
+			gInt->GetDeviceContext()->IASetVertexBuffers(0, 1, teddyVertexBuffers, &teddyStride, &teddyOffset);
+			gInt->GetDeviceContext()->VSSetShader(gInt->GetTeddyVertexShader(), nullptr, 0);
+			gInt->GetDeviceContext()->PSSetShader(gInt->GetTeddyPixelShader(), nullptr, 0);
+			gInt->GetDeviceContext()->IASetIndexBuffer(gInt->GetTeddyIndexBuffer(), DXGI_FORMAT::DXGI_FORMAT_R32_UINT, 0);
+
+			DirectX::XMFLOAT4X4 teddyLocation;
+			DirectX::XMStoreFloat4x4(&teddyLocation,
+				DirectX::XMMatrixTranspose(DirectX::XMMatrixMultiply( //Combine for model matrix and transpose for directx
+					DirectX::XMMatrixScaling(0.05f,0.05f,0.05f),
+					DirectX::XMMatrixMultiply( //Translate and scale
+						DirectX::XMMatrixRotationY(cubeRotationAngle), //Rotate
+						DirectX::XMMatrixTranslation(0.0f, -5.0f, 0.0f)
+					))));
+			ModelViewProjection teddymvp;
+			teddymvp.model = teddyLocation;
+			teddymvp.view = gInt->GetCameraMatrix();
+			teddymvp.projection = gInt->GetProjectionMatrix();
+			gInt->UpdateModelConstantBuffer(teddymvp);
+
+			ID3D11Buffer* teddyConstantBuffers[] = { gInt->GetModelConstantBuffer() };
+			gInt->GetDeviceContext()->VSSetConstantBuffers(0, 1, teddyConstantBuffers);
 
 			//gInt->GetDeviceContext()->VSSetShaderResources;
 
-			ID3D11SamplerState* pixelSamplers[] = { gInt->GetLinearSampler() };
-			gInt->GetDeviceContext()->PSSetSamplers(0, 1, pixelSamplers);
-			gInt->GetDeviceContext()->DrawIndexed(gInt->GetBaseCubeIndicesCount(), 0, 0);
+			ID3D11SamplerState* teddyPixelSamplers[] = { gInt->GetLinearSampler() };
+			gInt->GetDeviceContext()->PSSetSamplers(0, 1, teddyPixelSamplers);
+			gInt->GetDeviceContext()->DrawIndexed(teddyIndiciesCount, 0, 0);
+
+#pragma endregion
 
 			gInt->GetSwapChain()->Present(0, 0);
         }

@@ -80,5 +80,17 @@
     <FxCompile Include="BasePixelShader.hlsl">
       <Filter>Shaders\Pixel Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="TeddyVertexShader.hlsl">
+      <Filter>Shaders\Vertex Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="TeddyPixelShader.hlsl">
+      <Filter>Shaders\Pixel Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugGroundVertexShader.hlsl">
+      <Filter>Shaders\Vertex Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DebugGroundPixelShader.hlsl">
+      <Filter>Shaders\Pixel Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

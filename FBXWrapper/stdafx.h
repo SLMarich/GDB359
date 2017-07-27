@@ -14,3 +14,6 @@
 
 
 // TODO: reference additional headers your program requires here
+#include <fbxsdk.h>
+#include <iostream>
+#include <vector>

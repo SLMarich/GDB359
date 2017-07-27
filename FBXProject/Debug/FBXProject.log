@@ -1,3 +1,6 @@
 ﻿  GraphicsInterface.cpp
+f:\full sail\gdb359-l (project portfolio)\fbxproject\fbxproject\graphicsinterface.cpp(835): warning C4316: 'GraphicsInterface': object allocated on the heap may not be aligned 16
+  FBXProject.cpp
+  Generating Code...
   FBXProject.vcxproj -> F:\Full Sail\GDB359-L (Project Portfolio)\FBXProject\Debug\FBXProject.exe
   FBXProject.vcxproj -> F:\Full Sail\GDB359-L (Project Portfolio)\FBXProject\Debug\FBXProject.pdb (Full PDB)
